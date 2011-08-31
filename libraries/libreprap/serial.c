@@ -1,5 +1,10 @@
 #include "serial.h"
 
+#ifdef WIN32
+/* Pull in win32 source file instead */
+#include "serialwin32.c"
+#else
+
 #include <string.h>
 
 #include <stdlib.h>
@@ -11,7 +16,7 @@
 
 // Convert between the numeric speed and the termios representation
 // thereof.  Returns < 0 if argument is an unsupported speed.
-speed_t ntocf(long l) {
+static speed_t ntocf(long l) {
 	switch(l) {
 #ifdef B0
 	case 0:
@@ -144,14 +149,16 @@ speed_t ntocf(long l) {
 
 // Repeated many times to allow errors to be isolated to the specific
 // setting that failed to apply.  Returns < 0 on failure.
-int serial_set_attrib(int fd, struct termios* attribp) {
+static int
+serial_set_attrib(int fd, struct termios* attribp) {
 	if(tcsetattr(fd, TCSANOW, attribp) < 0) {
 		return -1;
 	}
 	return 0;
 }
 
-int serial_init(int fd, long speed) {
+static int
+serial_init(int fd, long speed) {
 	int status;
 	struct termios attribs;
 	// Initialize attribs
@@ -230,34 +237,50 @@ int serial_init(int fd, long speed) {
 
 /* Returns a prepared FD for the serial device specified, or some
  * value < 0 if an error occurred. */
-int serial_open(const char *path, long speed) {
+Serial serial_open(const char *path, long speed) {
 	int fd;
-  do {
-    fd = open(path, O_RDWR | O_NOCTTY | O_NDELAY);
-  } while(fd < 0 && errno == EINTR);
+	int status;
+	int flags;
+
+	do {
+	    fd = open(path, O_RDWR | O_NOCTTY | O_NDELAY);
+	} while(fd < 0 && errno == EINTR);
 	if(fd < 0) {
 		return -1;
 	}
-	int status;
 	if((status = serial_init(fd, speed)) < 0) {
-    int tmp = errno;
-    close(fd);
-    errno = tmp;
+		int tmp = errno;
+		close(fd);
+		errno = tmp;
 		return status;
 	}
-  int flags;
-  if((flags = fcntl(fd, F_GETFL, 0)) < 0) {
-    int tmp = errno;
-    close(fd);
-    errno = tmp;
-    return flags;
-  }
+	if((flags = fcntl(fd, F_GETFL, 0)) < 0) {
+		int tmp = errno;
+		close(fd);
+		errno = tmp;
+		return flags;
+	}
   
-  if(fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1) {
-    int tmp = errno;
-    close(fd);
-    errno = tmp;
-    return -1;
-  }
+	if(fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1) {
+		int tmp = errno;
+		close(fd);
+		errno = tmp;
+		return -1;
+	}
 	return fd;
 }
+
+int
+serial_close(Serial fd)
+{
+  int result;
+
+  if (SERIAL_INVALID_CHECK(dev->fd) >= 0) {
+    do {
+      result = close (dev->fd);
+    } while (result < 0 && errno == EINTR);
+  }
+
+  return result;
+}
+#endif

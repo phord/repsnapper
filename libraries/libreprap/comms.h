@@ -93,8 +93,8 @@ void rr_dev_reset (rr_dev dev);
 void rr_dev_kick (rr_dev dev);
 
 /* Accessors */
-/* File descriptor; <0 if not connected */
-int           rr_dev_fd     (rr_dev dev);
+/* Returns 1 if connected, 0 if not */
+int rr_dev_is_connected (rr_dev dev);
 
 /* Number of lines that have been since open */
 unsigned long rr_dev_lineno (rr_dev dev);

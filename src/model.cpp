@@ -263,7 +263,7 @@ void Model::PrintButton()
 
 bool Model::IsConnected()
 {
-  return rr_dev_fd (m_device) >= 0;
+  return rr_dev_is_connected (m_device) != 0;
 }
 
 // we try to change the state of the connection
@@ -304,14 +304,14 @@ void Model::SimplePrint()
   if (m_printing)
     alert ("Already printing.\nCannot start printing");
 
-  if (rr_dev_fd (m_device) < 0)
+  if (!rr_dev_is_connected (m_device))
       serial_try_connect (true);
   Print();
 }
 
 void Model::Print()
 {
-  if (rr_dev_fd (m_device) < 0) {
+  if (!rr_dev_is_connected (m_device)) {
     alert ("Not connected to printer.\nCannot start printing");
     return;
   }
@@ -360,7 +360,7 @@ void Model::RunExtruder (double extruder_speed, double extruder_length, bool rev
 
 void Model::SendNow(string str)
 {
-  if (rr_dev_fd (m_device) > 0)
+  if (rr_dev_is_connected(m_device))
     rr_dev_enqueue_cmd (m_device, RR_PRIO_HIGH, str.data(), str.size());
 
   else {
@@ -805,6 +805,7 @@ void RR_CALL Model::rr_wait_wr_fn (rr_dev dev, int wait_write, void *closure)
 {
   Model *model = static_cast<Model*>(closure);
 
+#ifndef WIN32
   Glib::IOCondition cond = (Glib::IO_ERR | Glib::IO_HUP |
 			    Glib::IO_PRI | Glib::IO_IN);
   if (wait_write)
@@ -814,6 +815,9 @@ void RR_CALL Model::rr_wait_wr_fn (rr_dev dev, int wait_write, void *closure)
   model->m_devconn.disconnect();
   model->m_devconn = Glib::signal_io().connect
     (sigc::mem_fun (*model, &Model::handle_dev_fd), rr_dev_fd (dev), cond);
+#else
+/* FIXME - handle win32 case */
+#endif
 }
 
 void RR_CALL Model::rr_log_fn (rr_dev dev, int type,
